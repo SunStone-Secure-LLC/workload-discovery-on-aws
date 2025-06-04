@@ -1,3 +1,3 @@
-# What are these for?
+# Deployment Scripts
 
-It seems these are packaging scripts for various distribution options.  No docs exist in the dev guide however but the code knows ;)
+This directory contains scripts related to the packaging and deployment of the application.
