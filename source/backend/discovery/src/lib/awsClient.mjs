@@ -65,14 +65,26 @@ import {memoize} from './utils.mjs';
 
 const RETRY_EXPONENTIAL_RATE = 2;
 
+//
+// Throttling logic - ensures that API calls are rate-limited across all clients sharing the same configuration.
+// Memoize ensures one throttler instance per unique parameter set.
+//
+
 // We want to share throttling limits across instances of clients so we memoize this
 // function that each factory function calls to create its throttlers during
 // instantiation.
+// Memoization ensures that the same throttler is reused for the same parameters, avoiding duplicate throttle limits.
 const createThrottler = memoize((name, credentials, region, throttleParams) => {
     return pThrottle(throttleParams);
 });
 
+//
+// Utility to create a throttled async paginator.
+// This wraps an async iterator (paginator) with a throttler to avoid API rate limits.
+//
+
 export function throttledPaginator(throttler, paginator) {
+    // Wraps an async paginator with a throttler, ensuring rate limits are not exceeded.
     const getPage = throttler(async () => paginator.next());
 
     return (async function* () {
@@ -84,7 +96,13 @@ export function throttledPaginator(throttler, paginator) {
     })();
 }
 
+//
+// ServiceCatalog AppRegistry client factory
+// Provides throttled paginator and throttled getApplication.
+//
+
 export function createServiceCatalogAppRegistryClient(credentials, region) {
+    // Factory for AWS Service Catalog AppRegistry client with built-in throttling and pagination.
     const appRegistryClient = new ServiceCatalogAppRegistry({customUserAgent, region, credentials});
 
     const paginatorConfig = {
@@ -102,6 +120,7 @@ export function createServiceCatalogAppRegistryClient(credentials, region) {
         interval: 1000
     });
 
+    // The getApplication function is throttled to avoid hitting API rate limits.
     const getApplication = getApplicationThrottler((application) => {
         return appRegistryClient.getApplication({application});
     });
@@ -110,6 +129,7 @@ export function createServiceCatalogAppRegistryClient(credentials, region) {
 
     return {
         async getAllApplications() {
+            // Retrieves all applications, using throttling to avoid API rate limits.
             const applications = [];
 
             for await (const result of throttledPaginator(listApplicationsPaginatorThrottler, listApplicationsPaginator)) {
@@ -124,7 +144,13 @@ export function createServiceCatalogAppRegistryClient(credentials, region) {
     }
 }
 
+//
+// Organizations client factory
+// Includes methods to list all accounts, recursively list accounts under an OU, and list only active accounts.
+//
+
 export function createOrganizationsClient(credentials, region) {
+    // Factory to create Organizations client with throttled paginators for listing accounts and OUs.
     const organizationsClient = new Organizations({customUserAgent, region, credentials});
 
     const paginatorConfig = {
@@ -143,6 +169,7 @@ export function createOrganizationsClient(credentials, region) {
     });
 
     async function getAllAccounts() {
+        // Uses throttled paginator to gather all accounts in the org.
         const listAccountsPaginator = paginateListAccounts(paginatorConfig, {});
 
         const accounts = []
@@ -155,6 +182,7 @@ export function createOrganizationsClient(credentials, region) {
     }
 
     async function getAllAccountsFromParent(ouId) {
+        // Recursively gathers all accounts from a given parent OU and its children.
         const ouIds = [ouId];
 
         // we will do these serially so as not to encounter rate limiting
@@ -181,6 +209,7 @@ export function createOrganizationsClient(credentials, region) {
 
     return {
         async getAllActiveAccountsFromParent(ouId) {
+            // Retrieves all ACTIVE accounts (status filter) from a given OU or the org root.
             const [{Roots}, {Organization}] = await Promise.all([
                 organizationsClient.listRoots({}),
                 organizationsClient.describeOrganization({})
@@ -206,11 +235,18 @@ export function createOrganizationsClient(credentials, region) {
     };
 }
 
+//
+// OpenSearch client factory
+// Provides throttled retrieval and description of OpenSearch domains.
+//
+
 export function createOpenSearchClient(credentials, region) {
+    // Factory for AWS OpenSearch client with throttled describeDomains calls.
     const OpenSearchClient = new OpenSearch({customUserAgent, region, credentials});
 
     return {
         async getAllOpenSearchDomains() {
+            // List all OpenSearch domains (requests for describing them are batched and sent serially to avoid rate limiting).
             const {DomainNames} = await OpenSearchClient.listDomainNames({EngineType: OPENSEARCH});
 
             const domains = [];
@@ -227,7 +263,13 @@ export function createOpenSearchClient(credentials, region) {
     };
 }
 
+//
+// API Gateway client factory
+// Handles throttling for API Gateway resource and method queries.
+//
+
 export function createApiGatewayClient(credentials, region) {
+    // Factory for API Gateway client with global throttling for resource/method calls.
     const apiGatewayClient = new APIGateway({customUserAgent, region, credentials});
 
     const apiGatewayPaginatorConfig = {
@@ -248,6 +290,7 @@ export function createApiGatewayClient(credentials, region) {
 
     return {
         getResources: totalOperationsThrottler(getResourcesThrottler(async restApiId => {
+            // Paginates and retrieves all resources for a given REST API.
             const getResourcesPaginator = paginateGetResources(apiGatewayPaginatorConfig, {restApiId});
 
             const apiResources = [];
@@ -257,18 +300,26 @@ export function createApiGatewayClient(credentials, region) {
             return apiResources;
         })),
         getMethod: totalOperationsThrottler(async (httpMethod, resourceId, restApiId) => {
+            // Fetches details for a single HTTP method on a resource.
             return apiGatewayClient.getMethod({
                 httpMethod, resourceId, restApiId
             });
         }),
         getAuthorizers: totalOperationsThrottler(async restApiId => {
+            // Retrieves authorizers for a REST API.
             return apiGatewayClient.getAuthorizers({restApiId})
                 .then(R.prop('items'))
         })
     };
 }
 
+//
+// AppSync client factory
+// Handles throttling for listing data sources and resolvers.
+//
+
 export function createAppSyncClient(credentials, region) {
+    // Factory for AppSync client with throttled listDataSources and listResolvers.
     const appSyncClient = new AppSync({customUserAgent, credentials, region});
     const appSyncListThrottler = createThrottler('appSyncList', credentials, region, {
         limit: 5,
@@ -278,9 +329,9 @@ export function createAppSyncClient(credentials, region) {
     const throttledListDataSources = appSyncListThrottler(({apiId, nextToken}) => appSyncClient.listDataSources({apiId, nextToken}));
     const throttledListResolvers = appSyncListThrottler(({apiId, typeName, nextToken}) => appSyncClient.listResolvers({apiId, typeName, nextToken}));
 
-
     return {
         async listDataSources(apiId) {
+            // Lists all data sources for a given AppSync API, paginated and throttled.
             const results = [];
 
             let nextToken = null;
@@ -294,6 +345,7 @@ export function createAppSyncClient(credentials, region) {
         },
 
         async listResolvers(apiId, typeName){
+            // Lists all resolvers for a given type in an AppSync API, paginated and throttled.
             const results = [];
 
             let nextToken = null;
@@ -308,7 +360,13 @@ export function createAppSyncClient(credentials, region) {
     }
 }
 
+//
+// Config Service client factory
+// Handles complex paginated and throttled queries, including advanced resource queries.
+//
+
 export function createConfigServiceClient(credentials, region) {
+    // Factory for Config Service client with advanced throttling and retry logic for aggregator queries.
     const configClient = new ConfigService({customUserAgent, credentials, region});
 
     const paginatorConfig = {
@@ -331,17 +389,20 @@ export function createConfigServiceClient(credentials, region) {
     );
 
     const batchGetAggregateResourceConfig = batchGetAggregateResourceConfigThrottler((ConfigurationAggregatorName, ResourceIdentifiers) => {
+        // Batch gets config items for a list of resource identifiers.
         return configClient.batchGetAggregateResourceConfig({ConfigurationAggregatorName, ResourceIdentifiers})
     })
 
     return {
         async getConfigAggregator(aggregatorName) {
+            // Retrieves configuration aggregator by name.
             const {ConfigurationAggregators} = await configClient.describeConfigurationAggregators({
                 ConfigurationAggregatorNames: [aggregatorName]
             });
             return ConfigurationAggregators[0];
         },
         async getAllAggregatorResources(aggregatorName, {excludes: {resourceTypes: excludedResourceTypes = []}}) {
+            // Retrieves all resources for a config aggregator, optionally excluding resource types (using advanced query).
             logger.info('Getting resources with advanced query');
             const excludedResourceTypesSqlList = excludedResourceTypes.map(rt => `'${rt}'`).join(',');
             const excludesResourceTypesWhere = R.isEmpty(excludedResourceTypes) ?
@@ -386,6 +447,7 @@ export function createConfigServiceClient(credentials, region) {
             return resources;
         },
         async getAggregatorResources(aggregatorName, resourceType) {
+            // Retrieves resources of a specific type from a config aggregator.
             const resources = [];
 
             const paginator = paginateListAggregateDiscoveredResources(paginatorConfig,{
@@ -403,6 +465,7 @@ export function createConfigServiceClient(credentials, region) {
             return resources;
         },
         async isConfigEnabled() {
+            // Checks if AWS Config is enabled for the account (both recorders and delivery channels present).
             const [{ConfigurationRecorders}, {DeliveryChannels}] = await Promise.all([
                 configClient.describeConfigurationRecorders(),
                 configClient.describeDeliveryChannels()
@@ -413,7 +476,13 @@ export function createConfigServiceClient(credentials, region) {
     };
 }
 
+//
+// Lambda client factory
+// Provides methods for listing all Lambda functions and event source mappings.
+//
+
 export function createLambdaClient(credentials, region) {
+    // Factory for Lambda client with paginated and throttled accessors.
     const lambdaPaginatorConfig = {
         client: new LambdaClient({customUserAgent, region, credentials}),
         pageSize: 100
@@ -421,6 +490,7 @@ export function createLambdaClient(credentials, region) {
 
     return {
         async getAllFunctions() {
+            // Gather all Lambda functions for the account/region.
             const functions = [];
             const listFunctions = paginateListFunctions(lambdaPaginatorConfig, {});
 
@@ -430,6 +500,7 @@ export function createLambdaClient(credentials, region) {
             return functions;
         },
         async listEventSourceMappings(arn) {
+            // Retrieves all event source mappings for a given Lambda function ARN.
             const mappings = [];
             const listEventSourceMappingsPaginator = paginateListEventSourceMappings(lambdaPaginatorConfig, {
                 FunctionName: arn
@@ -443,7 +514,13 @@ export function createLambdaClient(credentials, region) {
     };
 }
 
+//
+// EC2 client factory
+// Provides access to EC2 regional data, NAT gateways, Spot/Fleet requests, and TGW attachments.
+//
+
 export function createEc2Client(credentials, region) {
+    // Factory for EC2 client with paginated and throttled accessors.
     const ec2Client = new EC2({customUserAgent, credentials, region});
 
     const ec2PaginatorConfig = {
@@ -453,10 +530,12 @@ export function createEc2Client(credentials, region) {
 
     return {
         async getAllRegions() {
+            // Lists all regions available to the account (for multi-region inventory).
             const { Regions } = await ec2Client.describeRegions({});
             return Regions.map(x => ({name: x.RegionName}));
         },
         async getNatGateways(vpcId) {
+            // Fetches all NAT Gateways attached to a specific VPC.
             const {NatGateways} = await ec2Client.describeNatGateways({
                     Filter: [
                         {
@@ -469,6 +548,7 @@ export function createEc2Client(credentials, region) {
             return NatGateways;
         },
         async getAllSpotInstanceRequests() {
+            // Retrieves all EC2 spot instance requests.
             const siPaginator = paginateDescribeSpotInstanceRequests(ec2PaginatorConfig, {});
 
             const spotInstanceRequests = [];
@@ -478,6 +558,7 @@ export function createEc2Client(credentials, region) {
             return spotInstanceRequests;
         },
         async getAllSpotFleetRequests() {
+            // Retrieves all EC2 spot fleet requests.
             const sfPaginator = paginateDescribeSpotFleetRequests(ec2PaginatorConfig, {});
 
             const spotFleetRequests = [];
@@ -488,6 +569,7 @@ export function createEc2Client(credentials, region) {
             return spotFleetRequests;
         },
         async getAllTransitGatewayAttachments(Filters) {
+            // Retrieves all Transit Gateway Attachments for the account/region.
             const paginator = paginateDescribeTransitGatewayAttachments(ec2PaginatorConfig, {Filters});
             const attachments = [];
             for await (const {TransitGatewayAttachments} of paginator) {
@@ -498,7 +580,13 @@ export function createEc2Client(credentials, region) {
     }
 }
 
+//
+// ECS client factory
+// Handles throttling for cluster resource reads. Provides instance and task details.
+//
+
 export function createEcsClient(credentials, region) {
+    // Factory for ECS client with paginated and throttled accessors.
     const ecsClient = new ECS({customUserAgent, region, credentials});
 
     const ecsPaginatorConfig = {
@@ -513,15 +601,18 @@ export function createEcsClient(credentials, region) {
     });
 
     const describeContainerInstances = ecsClusterResourceReadThrottler((cluster, containerInstances) => {
+        // Describes ECS container instances in a cluster (throttled).
         return ecsClient.describeContainerInstances({cluster, containerInstances});
     })
 
     const describeTasks = ecsClusterResourceReadThrottler((cluster, tasks) => {
+        // Describes ECS tasks in a cluster (throttled, includes tags).
         return ecsClient.describeTasks({cluster, tasks, include: ['TAGS']});
     })
 
     return {
         async getAllClusterInstances(clusterArn) {
+            // Lists all EC2 instance IDs for container instances in a given ECS cluster.
             const listContainerInstancesPaginator = paginateListContainerInstances(ecsPaginatorConfig, {
                 cluster: clusterArn
             });
@@ -537,6 +628,7 @@ export function createEcsClient(credentials, region) {
             return instances;
         },
         async getAllServiceTasks(cluster, serviceName) {
+            // Lists all ECS tasks for a given service in a cluster.
             const serviceTasks = []
             const listTaskPaginator = paginateListTasks(ecsPaginatorConfig, {
                 cluster, serviceName
@@ -552,6 +644,7 @@ export function createEcsClient(credentials, region) {
             return serviceTasks;
         },
         async getAllClusterTasks(cluster) {
+            // Lists all ECS tasks in a cluster (includes tags).
             const clusterTasks = []
             const listTaskPaginator = paginateListTasks(ecsPaginatorConfig, {
                 cluster, include: ['TAGS']
@@ -569,7 +662,13 @@ export function createEcsClient(credentials, region) {
     };
 }
 
+//
+// EKS client factory
+// Handles throttling for nodegroup description. Provides full nodegroup inventory.
+//
+
 export function createEksClient(credentials, region) {
+    // Factory for EKS client with paginated and throttled nodegroup listing and description.
     const eksClient = new EKS({customUserAgent, region, credentials});
 
     const eksPaginatorConfig = {
@@ -584,6 +683,7 @@ export function createEksClient(credentials, region) {
 
     return {
         async listNodeGroups(clusterName) {
+            // Lists all nodegroups for a given EKS cluster, then describes each nodegroup.
             const ngs = [];
             const listNodegroupsPaginator = paginateListNodegroups(eksPaginatorConfig, {
                 clusterName
@@ -602,10 +702,15 @@ export function createEksClient(credentials, region) {
             return ngs;
         }
     }
-
 }
 
+//
+// ELB (Classic) client factory
+// Handles throttling for describeLoadBalancers.
+//
+
 export function createElbClient(credentials, region) {
+    // Factory for Classic Elastic Load Balancer client with throttled describeLoadBalancers calls.
     const elbClient = new ElasticLoadBalancing({customUserAgent, credentials, region});
 
     // ELB rate limits for describe* calls are shared amongst all LB types
@@ -616,6 +721,7 @@ export function createElbClient(credentials, region) {
 
     return {
         getLoadBalancerInstances: elbDescribeThrottler(async resourceId => {
+            // Retrieves all EC2 instance IDs for a given Load Balancer.
             const lb = await elbClient.describeLoadBalancers({
                 LoadBalancerNames: [resourceId],
             });
@@ -627,7 +733,13 @@ export function createElbClient(credentials, region) {
     };
 }
 
+//
+// ELBv2 client factory
+// Handles throttling for describing target health and listing target groups.
+//
+
 export function createElbV2Client(credentials, region) {
+    // Factory for ALB/NLB client with paginated and throttled accessors.
     const elbClientV2 = new ElasticLoadBalancingV2({customUserAgent, credentials, region});
     const elbV2PaginatorConfig = {
         client: new ElasticLoadBalancingV2Client({customUserAgent, region, credentials}),
@@ -642,12 +754,14 @@ export function createElbV2Client(credentials, region) {
 
     return {
         describeTargetHealth: elbDescribeThrottler(async arn => {
+            // Retrieves target health for a given Target Group ARN.
             const {TargetHealthDescriptions = []} = await elbClientV2.describeTargetHealth({
                 TargetGroupArn: arn
             });
             return TargetHealthDescriptions;
         }),
         getAllTargetGroups: elbDescribeThrottler(async () => {
+            // Lists all target groups (ALB/NLB) in the account/region.
             const tgPaginator = paginateDescribeTargetGroups(elbV2PaginatorConfig, {});
 
             const targetGroups = [];
@@ -660,7 +774,13 @@ export function createElbV2Client(credentials, region) {
     };
 }
 
+//
+// IAM client factory
+// Provides paginated and throttled method for listing all attached AWS managed policies.
+//
+
 export function createIamClient(credentials, region) {
+    // Factory for IAM client with paginated and throttled method for listing policies.
     const iamPaginatorConfig = {
         client: new IAMClient({customUserAgent, region, credentials}),
         pageSize: 100
@@ -668,6 +788,7 @@ export function createIamClient(credentials, region) {
 
     return {
         async getAllAttachedAwsManagedPolices() {
+            // Lists all attached AWS managed IAM policies.
             const listPoliciesPaginator = paginateListPolicies(iamPaginatorConfig, {
                 Scope: AWS.toUpperCase(), OnlyAttached: true});
 
@@ -681,7 +802,13 @@ export function createIamClient(credentials, region) {
     };
 }
 
+//
+// MediaConnect client factory
+// Provides paginated and throttled method for listing flows.
+//
+
 export function createMediaConnectClient(credentials, region) {
+    // Factory for MediaConnect client with throttled paginator for flows.
     const listFlowsPaginatorConfig = {
         client: new MediaConnectClient({customUserAgent, credentials, region}),
         pageSize: 20
@@ -694,6 +821,7 @@ export function createMediaConnectClient(credentials, region) {
 
     return {
         async getAllFlows() {
+            // Lists all MediaConnect flows in the account/region.
             const listFlowsPaginator = paginateListFlows(listFlowsPaginatorConfig, {});
 
             const flows = [];
@@ -707,7 +835,13 @@ export function createMediaConnectClient(credentials, region) {
     };
 }
 
+//
+// SNS client factory
+// Provides paginated and throttled method for listing all subscriptions.
+//
+
 export function createSnsClient(credentials, region) {
+    // Factory for SNS client with paginated and throttled method for listing subscriptions.
     const snsPaginatorConfig = {
         client: new SNSClient({customUserAgent, credentials, region}),
         pageSize: 100
@@ -715,6 +849,7 @@ export function createSnsClient(credentials, region) {
 
     return {
         async getAllSubscriptions() {
+            // Lists all SNS subscriptions in the account/region.
             const listSubscriptionsPaginator = paginateListSubscriptions(snsPaginatorConfig, {});
 
             const subscriptions = [];
@@ -727,7 +862,13 @@ export function createSnsClient(credentials, region) {
     }
 }
 
+//
+// STS client factory
+// Provides methods to assume role and get credentials using the default provider chain.
+//
+
 export function createStsClient(credentials, region) {
+    // Factory for STS client with methods for assuming a role and getting current credentials.
     const params = (credentials == null && region == null) ? {} : {credentials, region}
     const sts = new STS({...params, customUserAgent});
 
@@ -735,6 +876,7 @@ export function createStsClient(credentials, region) {
 
     return {
         async getCredentials(RoleArn) {
+            // Assumes the given role and returns temporary credentials.
             const {Credentials} = await sts.assumeRole({
                     RoleArn,
                     RoleSessionName: 'discovery'
@@ -744,12 +886,19 @@ export function createStsClient(credentials, region) {
             return {accessKeyId: Credentials.AccessKeyId, secretAccessKey: Credentials.SecretAccessKey, sessionToken: Credentials.SessionToken};
         },
         async getCurrentCredentials() {
+            // Retrieves credentials from the default provider chain.
             return CredentialsProvider();
         }
     };
 }
 
+//
+// DynamoDB Streams client factory
+// Handles throttling for describeStream API.
+//
+
 export function createDynamoDBStreamsClient(credentials, region) {
+    // Factory for DynamoDB Streams client with throttled describeStream calls.
     const dynamoDBStreamsClient = new DynamoDBStreams({customUserAgent, region, credentials});
 
     // this API only has a TPS of 10 so we set it artificially low to avoid rate limiting
@@ -762,13 +911,19 @@ export function createDynamoDBStreamsClient(credentials, region) {
 
     return {
         async describeStream(streamArn) {
+            // Describes a DynamoDB stream by ARN, throttled.
             const {StreamDescription} = await describeStream(streamArn);
             return StreamDescription;
         }
     }
 }
 
+//
+// Aggregator factory: returns all client creators above as properties.
+//
+
 export function createAwsClient() {
+    // Returns an object with all AWS client creation functions for use in discovery processes.
     return {
         createServiceCatalogAppRegistryClient,
         createOrganizationsClient,
