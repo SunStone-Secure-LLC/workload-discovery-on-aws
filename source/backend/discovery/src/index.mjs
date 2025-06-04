@@ -27,6 +27,7 @@ const discover = async () => {
 };
 
 discover().catch(err => {
+    // TODO: Add more explanation comments
     if(err instanceof AggregatorNotFoundError) {
         logger.error(`${err.message}. Ensure the name of the supplied aggregator is correct.`);
     } else if(err instanceof OrgAggregatorValidationError) {
