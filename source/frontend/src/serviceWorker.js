@@ -1,6 +1,13 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+/**
+ * @file This module provides utilities for registering and unregistering a service worker.
+ * Service workers enable web applications to work offline, load faster on subsequent visits,
+ * and provide a more app-like experience by caching assets.
+ * This code is based on the Create React App service worker setup.
+ */
+
 // This optional code is used to register a service worker.
 // register() is not called by default.
 
@@ -13,23 +20,35 @@
 // To learn more about the benefits of this model and instructions on how to
 // opt-in, read https://bit.ly/CRA-PWA
 
+/**
+ * Determines if the application is running on a localhost environment.
+ * This is used to apply different service worker behaviors for development vs. production.
+ */
 const isLocalhost = Boolean(
     window.location.hostname === 'localhost' ||
         // [::1] is the IPv6 localhost address.
         window.location.hostname === '[::1]' ||
         // 127.0.0.1/8 is considered localhost for IPv4.
         window.location.hostname.match(
-            /^127(?:\.(?:25[0-5]|2[0-4]\/d|[01]?\/d\/d?)){3}$/
+            /^127(?:\.(?:25[0-5]|2[0-4]\d|[01]?\d\d?)){3}$/ // Regex to match 127.x.x.x
         )
 );
 
+/**
+ * Registers a service worker if the application is running in production mode
+ * and the browser supports service workers.
+ * It handles different registration flows for localhost and non-localhost environments.
+ * @param {object} [config] - Optional configuration object with `onUpdate` and `onSuccess` callbacks.
+ */
 export function register(config) {
+    // Check if in production environment and service workers are supported by the browser.
     if (
         import.meta.env.NODE_ENV === 'production' &&
         'serviceWorker' in navigator
     ) {
         // The URL constructor is available in all browsers that support SW.
         const publicUrl = new URL('/', window.location.href);
+        // Ensure the service worker URL is on the same origin as the page.
         if (publicUrl.origin !== window.location.origin) {
             // Our service worker won't work if PUBLIC_URL is on a different origin
             // from what our page is served on. This might happen if a CDN is used to
@@ -38,7 +57,7 @@ export function register(config) {
         }
 
         window.addEventListener('load', () => {
-            const swUrl = `./service-worker.js`;
+            const swUrl = `./service-worker.js`; // Path to the service worker file.
 
             if (isLocalhost) {
                 // This is running on localhost. Let's check if a service worker still exists or not.
@@ -60,6 +79,13 @@ export function register(config) {
     }
 }
 
+/**
+ * Registers the service worker with the browser.
+ * It sets up listeners for service worker state changes (e.g., 'installed')
+ * and triggers callbacks for content updates or initial caching success.
+ * @param {string} swUrl - The URL of the service worker script.
+ * @param {object} [config] - Optional configuration object with `onUpdate` and `onSuccess` callbacks.
+ */
 function registerValidSW(swUrl, config) {
     navigator.serviceWorker
         .register(swUrl)
@@ -80,7 +106,7 @@ function registerValidSW(swUrl, config) {
                                     'tabs for this page are closed. See https://bit.ly/CRA-PWA.'
                             );
 
-                            // Execute callback
+                            // Execute callback if provided.
                             checkConfigUpdate(config, registration);
                         } else {
                             // At this point, everything has been precached.
@@ -88,7 +114,7 @@ function registerValidSW(swUrl, config) {
                             // "Content is cached for offline use." message.
                             console.log('Content is cached for offline use.');
 
-                            // Execute callback
+                            // Execute callback if provided.
                             checkConfigSuccess(config, registration);
                         }
                     }
@@ -100,6 +126,13 @@ function registerValidSW(swUrl, config) {
         });
 }
 
+/**
+ * Checks if a service worker file can be found at the given URL.
+ * If not found (404 or incorrect content type), it unregisters any existing
+ * service worker and reloads the page.
+ * @param {string} swUrl - The URL of the service worker script.
+ * @param {object} [config] - Optional configuration object.
+ */
 function checkValidServiceWorker(swUrl, config) {
     // Check if the service worker can be found. If it can't reload the page.
     fetch(swUrl)
@@ -129,18 +162,32 @@ function checkValidServiceWorker(swUrl, config) {
         });
 }
 
+/**
+ * Executes the `onUpdate` callback from the config object if it exists.
+ * @param {object} [config] - The configuration object.
+ * @param {ServiceWorkerRegistration} registration - The service worker registration object.
+ */
 function checkConfigUpdate(config, registration) {
     if (config?.onUpdate) {
         config.onUpdate(registration);
     }
 }
 
+/**
+ * Executes the `onSuccess` callback from the config object if it exists.
+ * @param {object} [config] - The configuration object.
+ * @param {ServiceWorkerRegistration} registration - The service worker registration object.
+ */
 function checkConfigSuccess(config, registration) {
     if (config?.onSuccess) {
         config.onSuccess(registration);
     }
 }
 
+/**
+ * Unregisters any active service worker.
+ * This function is typically called when offline capabilities are not desired.
+ */
 export function unregister() {
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.ready.then(registration => {
