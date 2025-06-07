@@ -101,7 +101,13 @@ Integrating with an existing Neptune cluster can be desirable if you already hav
             # ...
         ```
 2.  **Consider `source/cfn/templates/neptune.template`:** This template would remain largely unchanged, as it's only used when a new Neptune cluster is provisioned.
-3.  **Security Group Management:** If your existing Neptune cluster is in a different VPC or requires specific security group rules, you might need to introduce a new parameter in `main.template` (e.g., `ExistingNeptuneSecurityGroup`) to pass the ID of the security group that allows access to your existing Neptune cluster.
+3.  **Security Group Management:**
+    *   If your existing Neptune cluster is in a different VPC or requires specific security group rules, you might need to introduce a new parameter in `main.template` (e.g., `ExistingNeptuneSecurityGroup`) to pass the ID of the security group that allows access to your existing Neptune cluster.
+    *   **Important:** The `NeptuneDbSgIngressRule` resource within the `source/cfn/templates/gremlin-resolvers.template` is responsible for creating an ingress rule in the Neptune database's security group to allow traffic from the Gremlin resolver Lambda function. This rule is now conditional and will **not** be created if you set the `UseExistingNeptune` parameter (in `gremlin-resolvers.template`, which is typically set via `main.template`'s `ExistingNeptuneClusterEndpoint` parameter logic) to `true` (or provide an existing Neptune endpoint).
+    *   **Action Required for Existing Neptune:** If you are using an existing Neptune cluster, you **must** manually ensure that an equivalent security group ingress rule exists. This rule should allow TCP traffic on your Neptune cluster's port (e.g., 8182) from the security group associated with the `GremlinResolverLambdaSg` (the Gremlin AppSync Lambda function's security group, created by `gremlin-resolvers.template`).
+        *   If your existing Neptune cluster is in the **same VPC** as the Workload Discovery deployment, you need to add an inbound rule to your Neptune cluster's security group that sources the `GremlinResolverLambdaSg` ID.
+        *   If your existing Neptune cluster is in a **different VPC**, you will first need to establish cross-VPC connectivity (e.g., VPC Peering, AWS Transit Gateway). Then, you must configure the security group rules to allow traffic from the Gremlin resolver Lambda's source IP range or security group (if VPC peering allows referencing security groups across accounts/regions).
+    *   Failure to configure this ingress rule correctly will prevent the Gremlin resolver Lambda from connecting to your Neptune database, causing errors in graph data operations.
 
 ### Considerations/Limitations
 

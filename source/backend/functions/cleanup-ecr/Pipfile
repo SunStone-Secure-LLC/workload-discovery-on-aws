@@ -1,0 +1,20 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+boto3 = "*"
+crhelper = "*"
+jsonschema = "==4.17.0"
+# The following are dependencies of jsonschema or used by decorators,
+# adding them explicitly based on the decorators/requirements.txt
+pkgutil-resolve-name = "==1.3.10" # Note: pipenv uses '-' instead of '_' for package names from PyPI
+importlib-resources = "==6.0.0"
+zipp = "==3.19.1"
+
+
+[dev-packages]
+
+[requires]
+python_version = "3.12"

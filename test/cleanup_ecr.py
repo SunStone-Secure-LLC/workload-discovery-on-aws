@@ -9,13 +9,8 @@ all images within a specified ECR repository are deleted when a CloudFormation s
 
 import boto3 # AWS SDK for Python, used to interact with AWS services like ECR.
 from crhelper import CfnResource # Custom resource helper for CloudFormation.
-from boto_utils import paginate  # Utility for paginating AWS SDK responses.
-# Adjusted import for local testing; original might be for Lambda layer structure
-try:
-    from lambda_layers.decorators import with_logging # Custom decorator for logging Lambda events.
-except ImportError:
-    # Fallback for when lambda_layers is not directly on path but decorators is (due to sys.path manipulation)
-    from decorators import with_logging
+from boto_utils import paginate # Utility for paginating AWS SDK responses.
+from lambda_layers.decorators import with_logging # Custom decorator for logging Lambda events.
 
 
 # Initializes the CloudFormation custom resource helper.

@@ -162,6 +162,10 @@ Parameters:
     Type: String
     Default: ''
     Description: (Optional) The security group ID of an existing Neptune cluster to use. Required if ExistingNeptuneClusterEndpoint is provided.
+  ExistingNeptuneClusterResourceId:
+    Type: String
+    Default: ''
+    Description: (Optional) The resource ID (e.g., cluster-xxxxxxxxxxxxxxxxx) of an existing Neptune cluster. Required if ExistingNeptuneClusterEndpoint is provided.
   CreateNeptuneReplica:
     Type: String
     AllowedValues:
@@ -457,6 +461,11 @@ Rules:
         AssertDescription: You must provide two private subnets when using an existing VPC
       - Assert: !Not [ !Equals [ !Ref VpcCidrBlock, '' ]]
         AssertDescription: You must provide a CIDR block when using an existing VPC
+  ExistingNeptuneResourceIdRule:
+    RuleCondition: !Not [!Equals [!Ref ExistingNeptuneClusterEndpoint, '']]
+    Assertions:
+      - Assert: !Not [!Equals [!Ref ExistingNeptuneClusterResourceId, '']]
+        AssertDescription: ExistingNeptuneClusterResourceId must be provided when using an existing Neptune cluster if you have specified an ExistingNeptuneClusterEndpoint.
 
 Mappings:
 
@@ -790,7 +799,7 @@ Resources:
       Parameters:
         NodeLambdaRuntime: !GetAtt Variables.NodeLambdaRuntime
         CustomUserAgent: !GetAtt Variables.CustomUserAgent
-        NeptuneClusterResourceId: !If [UseExistingNeptune, !Ref AWS::NoValue, !GetAtt NeptuneStack.Outputs.NeptuneClusterResourceId]
+        NeptuneClusterResourceId: !If [UseExistingNeptune, !Ref ExistingNeptuneClusterResourceId, !GetAtt NeptuneStack.Outputs.NeptuneClusterResourceId]
         NeptuneClusterURL: !If [UseExistingNeptune, !Ref ExistingNeptuneClusterEndpoint, !GetAtt NeptuneStack.Outputs.NeptuneEndpointAddress]
         NeptuneClusterPort: !If [UseExistingNeptune, !Ref ExistingNeptuneClusterPort, !GetAtt NeptuneStack.Outputs.NeptuneEndpointPort]
         NeptuneDbSg: !If [UseExistingNeptune, !Ref ExistingNeptuneSecurityGroup, !GetAtt NeptuneStack.Outputs.NeptuneDbSg]
@@ -802,6 +811,7 @@ Resources:
         PrivateSubnet1: !If [ CreateVpc, !GetAtt VpcStack.Outputs.PrivateSubnet1, !Ref PrivateSubnet1 ]
         DeploymentBucket: !GetAtt Variables.DeploymentBucketName
         DeploymentBucketKey: !FindInMap [ Solution, Constants, DeploymentBucketKey ]
+        UseExistingNeptune: !If [UseExistingNeptune, "true", "false"]
 
       Tags:
         - Key: !GetAtt AppRegistryStack.Outputs.ApplicationTagKey

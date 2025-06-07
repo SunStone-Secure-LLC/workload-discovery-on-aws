@@ -205,6 +205,7 @@ Resources:
     Type: Custom::Setup
     Properties:
       ServiceToken: !GetAtt CleanupRepositoryFunction.Arn
+      ServiceTimeout: 360
       LogLevel: !Ref LogLevel
       Repository: !Ref PerspectiveContainerRepo
 
