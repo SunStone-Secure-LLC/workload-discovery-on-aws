@@ -150,6 +150,22 @@ Parameters:
     Description: |
       Max NCUs to be set on the Neptune cluster(Should be greater than or equal to MinNCUs). Required if DBInstance 
       type is db.serverless.
+  ExistingNeptuneClusterEndpoint:
+    Type: String
+    Default: ''
+    Description: (Optional) The endpoint of an existing Neptune cluster to use. Leave blank to provision a new cluster.
+  ExistingNeptuneClusterPort:
+    Type: String
+    Default: ''
+    Description: (Optional) The port of an existing Neptune cluster to use. Required if ExistingNeptuneClusterEndpoint is provided.
+  ExistingNeptuneSecurityGroup:
+    Type: String
+    Default: ''
+    Description: (Optional) The security group ID of an existing Neptune cluster to use. Required if ExistingNeptuneClusterEndpoint is provided.
+  ExistingNeptuneClusterResourceId:
+    Type: String
+    Default: ''
+    Description: (Optional) The resource ID (e.g., cluster-xxxxxxxxxxxxxxxxx) of an existing Neptune cluster. Required if ExistingNeptuneClusterEndpoint is provided.
   CreateNeptuneReplica:
     Type: String
     AllowedValues:
@@ -232,6 +248,14 @@ Parameters:
     AllowedValues:
       - 'Yes'
       - 'No'
+  ExistingOpenSearchDomainEndpoint:
+    Type: String
+    Default: ''
+    Description: (Optional) The endpoint of an existing OpenSearch domain to use. Leave blank to provision a new domain.
+  ExistingOpenSearchSecurityGroup:
+    Type: String
+    Default: ''
+    Description: (Optional) The security group ID of an existing OpenSearch cluster to use. Required if ExistingOpenSearchDomainEndpoint is provided.
   VpcId:
     Description: |
       The ID of the VPC you wish to use. If left blank, a new VPC will be provisioned. 
@@ -437,6 +461,11 @@ Rules:
         AssertDescription: You must provide two private subnets when using an existing VPC
       - Assert: !Not [ !Equals [ !Ref VpcCidrBlock, '' ]]
         AssertDescription: You must provide a CIDR block when using an existing VPC
+  ExistingNeptuneResourceIdRule:
+    RuleCondition: !Not [!Equals [!Ref ExistingNeptuneClusterEndpoint, '']]
+    Assertions:
+      - Assert: !Not [!Equals [!Ref ExistingNeptuneClusterResourceId, '']]
+        AssertDescription: ExistingNeptuneClusterResourceId must be provided when using an existing Neptune cluster if you have specified an ExistingNeptuneClusterEndpoint.
 
 Mappings:
 
@@ -475,6 +504,10 @@ Conditions:
   CreateGoogleSecret: !And
     - !Condition IsUsingCustomIdentity
     - !Equals [ !Ref IdentityType, Google ]
+  UseExistingNeptune: !Not [!Equals [!Ref ExistingNeptuneClusterEndpoint, '']]
+  UseExistingOpenSearch: !Not [!Equals [!Ref ExistingOpenSearchDomainEndpoint, '']]
+  DeployNewNeptuneCluster: !Equals [!Ref ExistingNeptuneClusterEndpoint, ''] # True if endpoint is blank, so new cluster
+  DeployNewOpenSearchDomain: !Equals [!Ref ExistingOpenSearchDomainEndpoint, ''] # True if endpoint is blank, so new domain
 
 Resources:
 
@@ -593,6 +626,7 @@ Resources:
 
   NeptuneStack:
     Type: AWS::CloudFormation::Stack
+    Condition: DeployNewNeptuneCluster # Only create if not using existing
     Properties:
       TemplateURL: !Sub ${Variables.DeploymentBucket}/neptune.template
       TimeoutInMinutes: 60
@@ -656,6 +690,7 @@ Resources:
 
   OpenSearchStack:
     Type: AWS::CloudFormation::Stack
+    Condition: DeployNewOpenSearchDomain # Only create if not using existing
     Properties:
       TemplateURL: !Sub ${Variables.DeploymentBucket}/opensearch.template
       TimeoutInMinutes: 60
@@ -764,10 +799,10 @@ Resources:
       Parameters:
         NodeLambdaRuntime: !GetAtt Variables.NodeLambdaRuntime
         CustomUserAgent: !GetAtt Variables.CustomUserAgent
-        NeptuneClusterResourceId: !GetAtt NeptuneStack.Outputs.NeptuneClusterResourceId
-        NeptuneClusterURL: !GetAtt NeptuneStack.Outputs.NeptuneEndpointAddress
-        NeptuneClusterPort: !GetAtt NeptuneStack.Outputs.NeptuneEndpointPort
-        NeptuneDbSg: !GetAtt NeptuneStack.Outputs.NeptuneDbSg
+        NeptuneClusterResourceId: !If [UseExistingNeptune, !Ref ExistingNeptuneClusterResourceId, !GetAtt NeptuneStack.Outputs.NeptuneClusterResourceId]
+        NeptuneClusterURL: !If [UseExistingNeptune, !Ref ExistingNeptuneClusterEndpoint, !GetAtt NeptuneStack.Outputs.NeptuneEndpointAddress]
+        NeptuneClusterPort: !If [UseExistingNeptune, !Ref ExistingNeptuneClusterPort, !GetAtt NeptuneStack.Outputs.NeptuneEndpointPort]
+        NeptuneDbSg: !If [UseExistingNeptune, !Ref ExistingNeptuneSecurityGroup, !GetAtt NeptuneStack.Outputs.NeptuneDbSg]
         PerspectiveAppSyncApiId: !GetAtt AppSyncApiStack.Outputs.AppSyncApiId
         AppSyncSettingsLambdaDataSourceName: !GetAtt SettingsResolversStack.Outputs.AppSyncSettingsLambdaDataSourceName
         VpcId: !If [ CreateVpc, !GetAtt VpcStack.Outputs.VPCId, !Ref VpcId, ]
@@ -776,6 +811,7 @@ Resources:
         PrivateSubnet1: !If [ CreateVpc, !GetAtt VpcStack.Outputs.PrivateSubnet1, !Ref PrivateSubnet1 ]
         DeploymentBucket: !GetAtt Variables.DeploymentBucketName
         DeploymentBucketKey: !FindInMap [ Solution, Constants, DeploymentBucketKey ]
+        UseExistingNeptune: !If [UseExistingNeptune, "true", "false"]
 
       Tags:
         - Key: !GetAtt AppRegistryStack.Outputs.ApplicationTagKey
@@ -789,8 +825,8 @@ Resources:
       Parameters:
         NodeLambdaRuntime: !GetAtt Variables.NodeLambdaRuntime
         CustomUserAgent: !GetAtt Variables.CustomUserAgent
-        OpenSearchDomainEndpoint: !GetAtt OpenSearchStack.Outputs.DomainEndpoint
-        OpenSearchSg: !GetAtt OpenSearchStack.Outputs.OpenSearchSg
+        OpenSearchDomainEndpoint: !If [UseExistingOpenSearch, !Ref ExistingOpenSearchDomainEndpoint, !GetAtt OpenSearchStack.Outputs.DomainEndpoint]
+        OpenSearchSg: !If [UseExistingOpenSearch, !Ref ExistingOpenSearchSecurityGroup, !GetAtt OpenSearchStack.Outputs.OpenSearchSg]
         OpenSearchLambdaRoleArn: !GetAtt OpenSearchRoleStack.Outputs.OpenSearchLambdaRoleArn
         PerspectiveAppSyncApiId: !GetAtt AppSyncApiStack.Outputs.AppSyncApiId
         VpcId: !If [CreateVpc, !GetAtt VpcStack.Outputs.VPCId, !Ref VpcId]

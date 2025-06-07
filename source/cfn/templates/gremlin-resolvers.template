@@ -48,6 +48,18 @@ Parameters:
   CustomUserAgent: 
     Type: String
 
+  UseExistingNeptune:
+    Type: String
+    Description: Set to true if using an existing Neptune cluster, false otherwise.
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+
+Conditions:
+
+  CreateNeptuneDbSgIngressRuleCondition: !Equals [!Ref UseExistingNeptune, "false"]
+
 Resources:
 
   GremlinResolverLambdaSg:
@@ -69,6 +81,7 @@ Resources:
 
   NeptuneDbSgIngressRule:
     Type: AWS::EC2::SecurityGroupIngress
+    Condition: CreateNeptuneDbSgIngressRuleCondition
     Properties:
       Description: Ingress for Neptune from Gremlin AppSync lambda
       FromPort: !Ref NeptuneClusterPort

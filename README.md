@@ -35,6 +35,129 @@ minutes to deploy. See the [deployment guide](https://docs.aws.amazon.com/soluti
 for instructions, and [the cost overview](https://docs.aws.amazon.com/solutions/latest/workload-discovery-on-aws/overview.html#cost) 
 to learn about costs.
 
+## Advanced Deployment Options
+
+### Use an Existing Neptune Cluster
+
+The current Workload Discovery on AWS CloudFormation templates are designed to provision a new Amazon Neptune cluster as part of the deployment. Direct integration with an existing Neptune cluster by simply providing its endpoint is **not natively supported** through the standard CloudFormation parameters.
+
+To integrate with an existing Neptune cluster, you would need to modify the solution's CloudFormation templates. This typically involves:
+
+#### Overview
+
+Integrating with an existing Neptune cluster can be desirable if you already have a managed graph database, wish to consolidate resources, or have specific compliance requirements for database provisioning.
+
+#### Prerequisites
+
+*   An existing Amazon Neptune DB cluster.
+*   The endpoint address and port of your Neptune cluster.
+*   Network connectivity between the Workload Discovery components (specifically the Gremlin resolvers Lambda functions) and your existing Neptune cluster. This usually means the Neptune cluster must be accessible from the private subnets where Workload Discovery's Lambda functions are deployed.
+*   Appropriate security group configurations on your existing Neptune cluster to allow ingress traffic from the security groups associated with Workload Discovery's Lambda functions.
+*   IAM permissions for Workload Discovery's components to access your existing Neptune cluster.
+
+#### Configuration Steps (Requires CloudFormation Template Modification)
+
+1.  **Pass in parameters to `source/cfn/templates/main.template`:**
+    *   Pass in the existing Neptune cluster's endpoint and port, for example:
+        ```yaml
+        ExistingNeptuneClusterEndpoint:
+          Type: String
+          Default: ''
+          Description: (Optional) The endpoint of an existing Neptune cluster to use. Leave blank to provision a new cluster.
+        ExistingNeptuneClusterPort:
+          Type: String
+          Default: ''
+          Description: (Optional) The port of an existing Neptune cluster to use. Required if ExistingNeptuneClusterEndpoint is provided.
+        ```
+    *   The template a condition to check if an existing Neptune endpoint is provided:
+        ```yaml
+        UseExistingNeptune: !Not [!Equals [!Ref ExistingNeptuneClusterEndpoint, '']]
+        ```
+    *   And will Conditionally create the `NeptuneStack` based on this new condition. If `UseExistingNeptune` is true, it will skip the `NeptuneStack` creation.
+        ```yaml
+        NeptuneStack:
+          Type: AWS::CloudFormation::Stack
+          Condition: !Not [UseExistingNeptune] # Only create if not using existing
+          Properties:
+            # ... existing properties ...
+        ```
+    *   The `GremlinResolversStack` will conditionally use the new `ExistingNeptuneClusterEndpoint` and `ExistingNeptuneClusterPort` parameters, or the outputs from the `NeptuneStack` if a new one is provisioned:
+        ```yaml
+        GremlinResolversStack:
+          Type: AWS::CloudFormation::Stack
+          Properties:
+            # ... other parameters ...
+            NeptuneClusterURL: !If [UseExistingNeptune, !Ref ExistingNeptuneClusterEndpoint, !GetAtt NeptuneStack.Outputs.NeptuneEndpointAddress]
+            NeptuneClusterPort: !If [UseExistingNeptune, !Ref ExistingNeptuneClusterPort, !GetAtt NeptuneStack.Outputs.NeptuneEndpointPort]
+            NeptuneDbSg: !If [UseExistingNeptune, !Ref ExistingNeptuneSecurityGroup, !GetAtt NeptuneStack.Outputs.NeptuneDbSg] # You might need a new parameter for existing SG
+            # ...
+        ```
+2.  **Review `source/cfn/templates/neptune.template`:** This template would remain largely unchanged, as it's only used when a new Neptune cluster is provisioned.
+3.  **Security Group Management:** If your existing Neptune cluster is in a different VPC or requires specific security group rules, pass in a parameter value in `main.template` (`ExistingNeptuneSecurityGroup`) to pass the ID of the security group that allows access to your existing Neptune cluster.
+
+#### Considerations/Limitations
+
+*   You are responsible for managing the lifecycle, scaling, and security of your existing Neptune cluster.
+*   Ensure version compatibility between your existing Neptune cluster and the Workload Discovery solution.
+*   Network connectivity and security group configurations are critical for successful integration.
+
+### Use an Existing OpenSearch Cluster
+
+Similar to Neptune, the current Workload Discovery on AWS CloudFormation templates are designed to provision a new Amazon OpenSearch Service cluster. Direct integration with an existing OpenSearch cluster by simply providing its endpoint is **not natively supported** through the standard CloudFormation parameters.
+
+#### Overview
+
+Using an existing OpenSearch cluster can be beneficial for centralizing search capabilities, leveraging existing infrastructure, or adhering to specific operational standards.
+
+#### Prerequisites
+
+*   An existing Amazon OpenSearch Service domain.
+*   The domain endpoint of your OpenSearch cluster.
+*   Network connectivity between the Workload Discovery components (specifically the Search resolvers Lambda functions) and your existing OpenSearch cluster. This usually means the OpenSearch cluster must be accessible from the private subnets where Workload Discovery's Lambda functions are deployed.
+*   Appropriate security group configurations on your existing OpenSearch cluster to allow ingress traffic from the security groups associated with Workload Discovery's Lambda functions.
+*   IAM permissions for Workload Discovery's components to access your existing OpenSearch cluster. The `SearchLambdaIAMRoleARN` parameter in `opensearch.template` indicates that the search Lambda's IAM role needs access.
+
+#### Configuration Steps (Requires CloudFormation Template Modification)
+
+1.  **Pass in values to the parameters in `source/cfn/templates/main.template`:**
+    *   Pass in the existing OpenSearch domain endpoint, for example:
+        ```yaml
+        ExistingOpenSearchDomainEndpoint:
+          Type: String
+          Default: ''
+          Description: (Optional) The endpoint of an existing OpenSearch domain to use. Leave blank to provision a new domain.
+        ```
+    *   The template uses a condition to check if an existing OpenSearch endpoint is provided:
+        ```yaml
+        UseExistingOpenSearch: !Not [!Equals [!Ref ExistingOpenSearchDomainEndpoint, '']]
+        ```
+    *   And will Conditionally create the `OpenSearchStack` based on this new condition. If `UseExistingOpenSearch` is true, it will skip the `OpenSearchStack` creation.
+        ```yaml
+        OpenSearchStack:
+          Type: AWS::CloudFormation::Stack
+          Condition: !Not [UseExistingOpenSearch] # Only create if not using existing
+          Properties:
+            # ... existing properties ...
+        ```
+    *   The `SearchResolversStack` parameters conditionally use the `ExistingOpenSearchDomainEndpoint` parameter, or the output from the `OpenSearchStack` if a new one is provisioned:
+        ```yaml
+        SearchResolversStack:
+          Type: AWS::CloudFormation::Stack
+          Properties:
+            # ... other parameters ...
+            OpenSearchDomainEndpoint: !If [UseExistingOpenSearch, !Ref ExistingOpenSearchDomainEndpoint, !GetAtt OpenSearchStack.Outputs.DomainEndpoint]
+            OpenSearchSg: !If [UseExistingOpenSearch, !Ref ExistingOpenSearchSecurityGroup, !GetAtt OpenSearchStack.Outputs.OpenSearchSg] # You might need a new parameter for existing SG
+            # ...
+        ```
+2.  **Review `source/cfn/templates/opensearch.template`:** This template would remain largely unchanged, as it's only used when a new OpenSearch domain is provisioned.
+3.  **Security Group Management:** If your existing OpenSearch cluster is in a different VPC or requires specific security group rules, you would need to pass a parameter value to `main.template` (e.g., `ExistingOpenSearchSecurityGroup`) to pass the ID of the security group that allows access to your existing OpenSearch cluster.
+
+#### Considerations/Limitations
+
+*   You are responsible for managing the lifecycle, scaling, and security of your existing OpenSearch cluster.
+*   Ensure version compatibility between your existing OpenSearch cluster and the Workload Discovery solution.
+*   Network connectivity and security group configurations are critical for successful integration.
+
 ## Usage
 
 A web interface is included with Workload Discovery. Refer to the [documentation](https://github.com/aws-solutions/workload-discovery-on-aws) 
@@ -161,6 +284,11 @@ Parameters required by the template:
 * **NeptuneInstanceClass** - Select from a range of instance types that will be provisioned for the Amazon Neptune database. Note, the selection could increase the cost associated with running the solution.
 * **OpensearchInstanceType** - Select the instance type that will be provisioned for the Amazon ElasticSearch Domain.
 * **AthenaWorkgroup** - The Workgroup that will be used to issue the Athena query when the Cost feature is enabled.
+* **ExistingNeptuneClusterEndpoint** - (Optional) The endpoint of an existing Neptune cluster to use. Leave blank to provision a new cluster.
+* **ExistingNeptuneClusterPort** - (Optional) The port of an existing Neptune cluster to use. Required if ExistingNeptuneClusterEndpoint is provided.
+* **ExistingNeptuneSecurityGroup** - (Optional) The ID of the security group that allows access to your existing Neptune cluster. Required if ExistingNeptuneClusterEndpoint is provided.
+* **ExistingOpenSearchDomainEndpoint** - (Optional) The endpoint of an existing OpenSearch domain to use. Leave blank to provision a new domain.
+* **ExistingOpenSearchSecurityGroup** - (Optional) The ID of the security group that allows access to your existing OpenSearch cluster. Required if ExistingOpenSearchDomainEndpoint is provided.
 * **OpensearchMultiAz** - Choose whether to create an Opensearch cluster that spans multiple Availability Zone. Choosing Yes improves resilience; however, increases the cost of this solution.
   
 **Note** - You will need to deploy in the same account and region as the S3 bucket that the deployment artefacts are uploaded to.

@@ -16,7 +16,9 @@ Resources:
     Type: AWS::IAM::ServiceLinkedRole
     Condition: DeployOpensearchServiceRole
     Properties:
-      AWSServiceName: es.amazonaws.com
+      # see https://docs.aws.amazon.com/opensearch-service/latest/developerguide/slr-aos.html
+      # see https://stackoverflow.com/questions/47229247/validationexception-before-you-can-proceed-you-must-enable-a-service-linked-ro
+      AWSServiceName: opensearchservice.amazonaws.com
       Description: Role to enable Amazon ES to manage your cluster.
 
   # Needs to be in here to avoid a circular dependency between the Search lambda stack

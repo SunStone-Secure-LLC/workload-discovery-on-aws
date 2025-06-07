@@ -446,6 +446,7 @@ Resources:
       Bucket: !Ref ConfigBucket
       LogLevel: !Ref LogLevel
       ServiceToken: !GetAtt CleanupBucketFunction.Arn
+      ServiceTimeout: 360
 
   CleanupCostAndUsageAthenaResultsBucket:
     Type: "Custom::S3BucketCleanup"

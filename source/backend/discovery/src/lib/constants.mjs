@@ -1,12 +1,36 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+/**
+ * @file This module defines a collection of constants used throughout the Workload Discovery application.
+ * These constants include:
+ * - Standardized relationship types for graph database interactions.
+ * - AWS resource types (e.g., 'AWS::EC2::Instance', 'AWS::S3::Bucket').
+ * - Common error messages and codes.
+ * - Service-specific identifiers and prefixes.
+ * - Other miscellaneous flags and names.
+ * Centralizing these values ensures consistency and reduces magic strings in the codebase.
+ */
+
+// --- Relationship Types ---
+// These constants define the types of relationships between resources in the graph database.
 export const IS_ASSOCIATED_WITH = 'Is associated with ';
 export const CONTAINS = 'Contains ';
 export const IS_CONTAINED_IN = 'Is contained in ';
 export const IS_ATTACHED_TO = 'Is attached to ';
+
+// --- Common Error Codes and Messages ---
+// Constants representing various AWS API error codes and specific error messages.
 export const ACCESS_DENIED = 'AccessDenied';
 export const ACCESS_DENIED_EXCEPTION = 'AccessDeniedException';
+export const NOT_FOUND_EXCEPTION = 'NotFoundException';
+export const CONNECTION_CLOSED_PREMATURELY = 'Connection closed prematurely';
+export const RESOLVER_CODE_SIZE_ERROR = 'Reached evaluated resolver code size limit.';
+export const FUNCTION_RESPONSE_SIZE_TOO_LARGE = 'Response payload size exceeded maximum allowed payload size (6291556 bytes).';
+
+// --- AWS Service and Resource Type Identifiers ---
+// These constants represent various AWS service names and specific AWS resource types
+// as defined in AWS Config or other AWS services.
 export const AWS = 'aws';
 export const AWS_API_GATEWAY_AUTHORIZER = 'AWS::ApiGateway::Authorizer';
 export const AWS_API_GATEWAY_METHOD = 'AWS::ApiGateway::Method';
@@ -93,73 +117,71 @@ export const AWS_SNS_TOPIC = 'AWS::SNS::Topic';
 export const AWS_SQS_QUEUE = 'AWS::SQS::Queue';
 export const AWS_SSM_MANAGED_INSTANCE_INVENTORY = 'AWS::SSM::ManagedInstanceInventory';
 export const AWS_TAGS_TAG = 'AWS::Tags::Tag';
-export const APPLICATION_TAG_NAME = 'awsApplication';
-export const AWS_ORGANIZATIONS = 'AWS_ORGANIZATIONS';
-export const DISCOVERY_ROLE_NAME = 'WorkloadDiscoveryRole';
-export const ECS = 'ecs';
-export const ELASTIC_LOAD_BALANCING = 'elasticloadbalancing';
-export const LOAD_BALANCER = 'loadbalancer';
-export const ENI_NAT_GATEWAY_INTERFACE_TYPE = 'nat_gateway';
-export const ENI_ALB_DESCRIPTION_PREFIX = 'ELB app';
-export const ENI_ELB_DESCRIPTION_PREFIX = 'ELB ';
-export const ENI_VPC_ENDPOINT_INTERFACE_TYPE = 'vpc_endpoint';
-export const ENI_SEARCH_DESCRIPTION_PREFIX = 'ES '; // this value is the same for both Opensearch and ES ENIs
-export const ENI_SEARCH_REQUESTER_ID = 'amazon-elasticsearch'; // this value is the same for both Opensearch and ES ENIs
-export const IAM = 'iam';
-export const ROLE = 'role';
-export const LAMBDA = 'lambda';
-export const GLOBAL = 'global';
-export const REGION = 'region';
-export const REGIONAL = 'regional';
-export const NETWORK_INTERFACE = 'NetworkInterface';
-export const NETWORK_INTERFACE_ID = 'networkInterfaceId';
-export const NOT_APPLICABLE = 'Not Applicable';
-export const MULTIPLE_AVAILABILITY_ZONES = 'Multiple Availability Zones';
-export const SPOT_FLEET_REQUEST_ID_TAG = 'aws:ec2spot:fleet-request-id';
-export const SUBNET_ID = 'subnetId';
-export const GET = 'GET';
-export const POST = 'POST';
-export const PUT = 'PUT';
-export const DELETE = 'DELETE';
-export const SUBNET = 'Subnet';
-export const OPENSEARCH = 'OpenSearch';
-export const SECURITY_GROUP = 'SecurityGroup';
-export const RESOURCE_DISCOVERED =  'ResourceDiscovered';
-export const RESOURCE_NOT_RECORDED =  'ResourceNotRecorded';
-export const EC2 = 'ec2';
-export const SPOT_FLEET_REQUEST = 'spot-fleet-request';
-export const SPOT_INSTANCE_REQUEST = 'spot-instance-request';
-export const INLINE_POLICY = 'inlinePolicy';
-export const TAG = 'tag';
-export const TAGS = 'tags';
-export const VPC = 'Vpc';
-export const APIGATEWAY = 'apigateway';
-export const RESTAPIS = 'restapis';
-export const RESOURCES = 'resources';
-export const METHODS = 'methods';
-export const AUTHORIZERS = 'authorizers';
-export const EVENTS = 'events';
-export const EVENT_BUS = 'event-bus';
-export const NAME = 'Name';
-export const NOT_FOUND_EXCEPTION = 'NotFoundException';
-export const CN_NORTH_1 = 'cn-north-1';
-export const CN_NORTHWEST_1 = 'cn-northwest-1';
-export const US_GOV_EAST_1 = 'us-gov-east-1';
-export const US_GOV_WEST_1 = 'us-gov-west-1';
-export const AWS_CN = 'aws-cn';
-export const AWS_US_GOV = 'aws-us-gov';
-export const CONNECTION_CLOSED_PREMATURELY = 'Connection closed prematurely';
-export const RESOLVER_CODE_SIZE_ERROR = 'Reached evaluated resolver code size limit.';
-export const PERSPECTIVE = 'perspective';
-export const TASK_DEFINITION = 'task-definition';
-export const TRANSIT_GATEWAY_ATTACHMENT = 'transit-gateway-attachment';
-export const UNKNOWN = 'unknown';
-export const DISCOVERY_PROCESS_RUNNING = 'Discovery process ECS task is already running in cluster.';
-export const CONSOLE = 'console';
-export const SIGN_IN = 'signin';
-export const AWS_AMAZON_COM = 'aws.amazon.com';
-export const S3 = 's3';
-export const HOME = 'home';
-export const FULFILLED = 'fulfilled';
-export const FUNCTION_RESPONSE_SIZE_TOO_LARGE = 'Response payload size exceeded maximum allowed payload size (6291556 bytes).';
-export const WORKLOAD_DISCOVERY_TASKGROUP = 'workload-discovery-taskgroup';
+
+// --- Application-Specific Identifiers and Flags ---
+export const APPLICATION_TAG_NAME = 'awsApplication'; // The name of the tag used to identify applications.
+export const AWS_ORGANIZATIONS = 'AWS_ORGANIZATIONS'; // String constant indicating usage of AWS Organizations for discovery.
+export const DISCOVERY_ROLE_NAME = 'WorkloadDiscoveryRole'; // The name of the IAM role used for discovery.
+export const ECS = 'ecs'; // Identifier for Elastic Container Service.
+export const ELASTIC_LOAD_BALANCING = 'elasticloadbalancing'; // Identifier for Elastic Load Balancing service.
+export const LOAD_BALANCER = 'loadbalancer'; // Generic identifier for a load balancer.
+export const ENI_NAT_GATEWAY_INTERFACE_TYPE = 'nat_gateway'; // Interface type for NAT Gateway ENIs.
+export const ENI_ALB_DESCRIPTION_PREFIX = 'ELB app'; // Description prefix for Application Load Balancer ENIs.
+export const ENI_ELB_DESCRIPTION_PREFIX = 'ELB '; // Description prefix for Classic Load Balancer ENIs.
+export const ENI_VPC_ENDPOINT_INTERFACE_TYPE = 'vpc_endpoint'; // Interface type for VPC Endpoint ENIs.
+export const ENI_SEARCH_DESCRIPTION_PREFIX = 'ES '; // Description prefix for OpenSearch/Elasticsearch ENIs.
+export const ENI_SEARCH_REQUESTER_ID = 'amazon-elasticsearch'; // Requester ID for OpenSearch/Elasticsearch ENIs.
+export const IAM = 'iam'; // Identifier for Identity and Access Management service.
+export const ROLE = 'role'; // Generic identifier for an IAM role.
+export const LAMBDA = 'lambda'; // Identifier for AWS Lambda service.
+export const GLOBAL = 'global'; // Indicates a global AWS resource.
+export const REGION = 'region'; // Indicates a regional AWS resource.
+export const REGIONAL = 'regional'; // Indicates a regional scope.
+export const NETWORK_INTERFACE = 'NetworkInterface'; // Generic identifier for a network interface.
+export const NETWORK_INTERFACE_ID = 'networkInterfaceId'; // Property name for network interface ID.
+export const NOT_APPLICABLE = 'Not Applicable'; // Standard string for "not applicable" values.
+export const MULTIPLE_AVAILABILITY_ZONES = 'Multiple Availability Zones'; // Description for resources spanning multiple AZs.
+export const SPOT_FLEET_REQUEST_ID_TAG = 'aws:ec2spot:fleet-request-id'; // Tag key for EC2 Spot Fleet request ID.
+export const SUBNET_ID = 'subnetId'; // Property name for subnet ID.
+export const GET = 'GET'; // HTTP GET method.
+export const POST = 'POST'; // HTTP POST method.
+export const PUT = 'PUT'; // HTTP PUT method.
+export const DELETE = 'DELETE'; // HTTP DELETE method.
+export const SUBNET = 'Subnet'; // Generic identifier for a subnet.
+export const OPENSEARCH = 'OpenSearch'; // Identifier for OpenSearch service.
+export const SECURITY_GROUP = 'SecurityGroup'; // Generic identifier for a security group.
+export const RESOURCE_DISCOVERED =  'ResourceDiscovered'; // Event type for a discovered resource.
+export const RESOURCE_NOT_RECORDED =  'ResourceNotRecorded'; // Event type for a resource not recorded.
+export const EC2 = 'ec2'; // Identifier for Elastic Compute Cloud service.
+export const SPOT_FLEET_REQUEST = 'spot-fleet-request'; // Identifier for a Spot Fleet request.
+export const SPOT_INSTANCE_REQUEST = 'spot-instance-request'; // Identifier for a Spot Instance request.
+export const INLINE_POLICY = 'inlinePolicy'; // Identifier for an inline IAM policy.
+export const TAG = 'tag'; // Generic identifier for a tag.
+export const TAGS = 'tags'; // Generic identifier for tags collection.
+export const VPC = 'Vpc'; // Generic identifier for a Virtual Private Cloud.
+export const APIGATEWAY = 'apigateway'; // Identifier for API Gateway service.
+export const RESTAPIS = 'restapis'; // Identifier for REST APIs.
+export const RESOURCES = 'resources'; // Generic identifier for resources.
+export const METHODS = 'methods'; // Identifier for API Gateway methods.
+export const AUTHORIZERS = 'authorizers'; // Identifier for API Gateway authorizers.
+export const EVENTS = 'events'; // Identifier for EventBridge service.
+export const EVENT_BUS = 'event-bus'; // Identifier for an EventBridge event bus.
+export const NAME = 'Name'; // Common property name for a resource's name.
+export const CN_NORTH_1 = 'cn-north-1'; // AWS China (Beijing) region.
+export const CN_NORTHWEST_1 = 'cn-northwest-1'; // AWS China (Ningxia) region.
+export const US_GOV_EAST_1 = 'us-gov-east-1'; // AWS GovCloud (US-East) region.
+export const US_GOV_WEST_1 = 'us-gov-west-1'; // AWS GovCloud (US-West) region.
+export const AWS_CN = 'aws-cn'; // Partition for AWS China regions.
+export const AWS_US_GOV = 'aws-us-gov'; // Partition for AWS GovCloud regions.
+export const PERSPECTIVE = 'perspective'; // Identifier for a perspective view.
+export const TASK_DEFINITION = 'task-definition'; // Identifier for an ECS task definition.
+export const TRANSIT_GATEWAY_ATTACHMENT = 'transit-gateway-attachment'; // Identifier for a Transit Gateway Attachment.
+export const UNKNOWN = 'unknown'; // Generic string for unknown values.
+export const DISCOVERY_PROCESS_RUNNING = 'Discovery process ECS task is already running in cluster.'; // Message indicating discovery process is already active.
+export const CONSOLE = 'console'; // Identifier for AWS Console.
+export const SIGN_IN = 'signin'; // Identifier for sign-in related actions.
+export const AWS_AMAZON_COM = 'aws.amazon.com'; // AWS domain.
+export const S3 = 's3'; // Identifier for Amazon S3 service.
+export const HOME = 'home'; // Generic identifier for a home path/route.
+export const FULFILLED = 'fulfilled'; // Promise status indicating successful completion.
+export const WORKLOAD_DISCOVERY_TASKGROUP = 'workload-discovery-taskgroup'; // Task group name for Workload Discovery ECS tasks.
